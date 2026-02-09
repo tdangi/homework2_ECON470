@@ -11,53 +11,35 @@ dat.2017 <- read_csv("hmwk_data/data-2017.csv")
 dat.2018 <- read_csv("hmwk_data/data-2018.csv")
 dat.2019 <- read_csv("hmwk_data/data-2019.csv")
 
-#check overall summary w/ graphs for each year to make sure data is right
-
-# recode with variables we're interested in
-vars <- c(
-"hhi_ma",
-"plan_count",
-"avg_premium_partc",
-"share_pos_premiums",
-"avg_bid",
-"avg_eligibles",
-"ffs_cost"
+#check overall colnames for each year to make sure data is right
+datasets <- list(
+  "2014" = dat.2014,
+  "2015" = dat.2015,
+  "2016" = dat.2016,
+  "2017" = dat.2017,
+  "2018" = dat.2018,
+  "2019" = dat.2019
 )
+colnames_list <- lapply(datasets, colnames)
+common_vars <- Reduce(intersect, colnames_list)
+common_vars #common variables across all years
 
-2014_sumary <- dat.2014 %>% 
-cols      = all_of(vars),
-names_to  = "variable",
-values_to = "value"
-) %>%
-group_by(variable) %>%
-summarize(
-n_nonmissing = sum(!is.na(value)),
-n_missing    = sum(is.na(value)),
-mean         = mean(value, na.rm = TRUE),
-sd           = sd(value,   na.rm = TRUE),
-min          = min(value,  na.rm = TRUE),
-max          = max(value,  na.rm = TRUE),
-.groups      = "drop"
-) %>%
-mutate(
-variable = recode(
-variable,
-"hhi_ma"             = "MA HHI",
-"plan_count"         = "# of plans",
-"avg_premium_partc"  = "Avg Part C premium",
-"share_pos_premiums" = "Share with positive premium",
-"avg_bid"            = "Avg bid",
-"avg_eligibles"      = "Avg eligibles",
-"ffs_cost"           = "Avg FFS cost"
-),
-across(c(mean, sd, min, max), ~round(., 2))
-)
+#variables unique to each year
+unique_vars <- lapply(colnames_list, function(x) {
+  setdiff(x, Reduce(intersect, colnames_list))
+})
+unique_vars #should be 0
 
 
+#combine all datasets
 na.full <- rbind(dat.2014, dat.2015, dat.2016, dat.2017, dat.2018, dat.2019)
 
 #check if dataset is loaded correctly
 str(na.full)
+
+#clean year column and merge into one column
+names(na.full)[grepl("year", names(na.full))]
+tail(na.full[, c("year.x", "year.y", "year.x.x", "year.y.y")]) #all the same
 
 #save na.full as another dataset
 write_csv(na.full,"hmwk_data/data_2014-2019.csv")

@@ -1,0 +1,48 @@
+---
+jupyter:
+  kernelspec:
+    display_name: R
+    language: R
+    name: ir
+---
+
+```{r}
+#| include: false
+
+#load library
+library(pacman)
+p_load(tidyverse, ggplot2, dplyr, lubridate, stringr, readxl, data.table, gdata, scales, kableExtra)
+
+# load data
+ma_data <- read_csv("hmwk_data/data_2014-2019.csv")
+str(ma_data)
+```
+
+
+
+# Part I: Summarize the Data
+
+### Remove all SNPs, 800-series plans, and prescription drug only plans (i.e., plans that do not offer Part C benefits). Provide a box and whisker plot showing the distribution of plan counts by county over time. Do you think that the number of plans is sufficient, too few, or too many? To answer this question, you need only work with the “plan data” and the “service area” data just as we did in homework 1, but for more years in this case.
+```{r}
+#| echo: false
+
+#check plan types
+unique(ma_data$plan_type)
+
+#remove all rows that are SNPs, 800-series plans, and prescription drug only plans
+ma_data_rm <- ma_data %>%
+    filter(
+    !grepl("SNP", plan_type),             # remove any plan with "SNP" in its type
+    !plan_type %in% c("1876 Cost"),       # remove 800-series plans (e.g., 1876 Cost)
+    !grepl("Prescription", plan_type, ignore.case = TRUE) # remove Part D only plans
+          ) 
+#check
+unique(ma_data_rm$plan_type)
+
+# count plans by county and year
+plan_counts <- ma_data_rm %>%
+    group_by(year, county) %>%
+    
+
+
+```
