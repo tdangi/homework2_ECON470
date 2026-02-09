@@ -40,6 +40,16 @@ str(na.full)
 #clean year column and merge into one column
 names(na.full)[grepl("year", names(na.full))]
 tail(na.full[, c("year.x", "year.y", "year.x.x", "year.y.y")]) #all the same
+sum(is.na(na.full$year.x)) #keep year.x
+sum(is.na(na.full$year.y))
+sum(is.na(na.full$year.x.x))
+sum(is.na(na.full$year.y.y))
+unique(na.full$year.x)
+#keep year x and remove the other years
+na.full <- na.full %>%
+    select(-year.y, -year.x.x, -year.y.y) %>%
+    rename(year = year.x)
+
 
 #save na.full as another dataset
 write_csv(na.full,"hmwk_data/data_2014-2019.csv")

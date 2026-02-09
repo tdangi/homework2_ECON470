@@ -22,7 +22,8 @@ str(ma_data)
 
 # Part I: Summarize the Data
 
-### Remove all SNPs, 800-series plans, and prescription drug only plans (i.e., plans that do not offer Part C benefits). Provide a box and whisker plot showing the distribution of plan counts by county over time. Do you think that the number of plans is sufficient, too few, or too many? To answer this question, you need only work with the “plan data” and the “service area” data just as we did in homework 1, but for more years in this case.
+### 1. Remove all SNPs, 800-series plans, and prescription drug only plans (i.e., plans that do not offer Part C benefits). Provide a box and whisker plot showing the distribution of plan counts by county over time. Do you think that the number of plans is sufficient, too few, or too many? To answer this question, you need only work with the “plan data” and the “service area” data just as we did in homework 1, but for more years in this case.
+Based on the box-and-whisker plot, the number of plans per county for each year are extremely varied per county. There tends to be many options within the counties with the large number of outliers, which indicates many options or plans for each county. This could possibly overhwlem the consumer.
 ```{r}
 #| echo: false
 
@@ -42,7 +43,69 @@ unique(ma_data_rm$plan_type)
 # count plans by county and year
 plan_counts <- ma_data_rm %>%
     group_by(year, county) %>%
-    
+    summarise(
+        n_plans = n(),
+        .groups = "drop"
+    )
+
+#create box and whisker of plan counts by county over time
+ggplot(plan_counts, aes(x=factor(year), y=n_plans))+
+    geom_boxplot(fill="skyblue", outlier.color = "black")+
+    labs(
+        title = "Distribution of MA Plan Counts by County Over Time",
+        x= "Year",
+        y = "Number of Plans per County",
+    )+
+    theme_minimal()
 
 
+```
+
+### 2. Provide frequency histograms showing the distribution of plan bids in 2014 and 2018. How has this distribution changed over time? To properly measure plan bids, you need to incorporate the landscape files (in the plan characteristics code files) and the risk/rebate data. The build data code file in the Medicare Advantage GitHub repository shows how to back out plan bids from the observed premium and rebate data.
+The highest distribution of plan bids in 2014 is slightly more than 8000. The highest distribution of plan bids in 2018 is around 10000. This reveals that plan bids have increased, over time. 
+```{r}
+# | echo = false
+# 1. use plan bids
+# 2. Do this for 2014 and 2018 only
+# 3. use: plan characteristics, risk/rebate file
+# 4. plot frequency hist of plan bids, then compare how it changes over time
+
+#filter for 2014 and 2018 onlyv & construct plan bids
+ggplot(ma_data_rm %>% filter(year == 2014), aes(x=bid))+
+    geom_histogram(bins=30, fill= "skyblue", color="black")+
+    labs(
+        title = "Distribution of MA Plan Bids (2014)",
+        x = "Plan Bids",
+        y = "Frequency"
+    )+
+    theme_minimal()
+
+```
+
+```{r}
+# | echo = false
+# 2018 plan bids
+ggplot(ma_data_rm %>% filter(year == 2018), aes(x=bid))+
+    geom_histogram(bins=30, fill= "blue", color="black")+
+    labs(
+        title = "Distribution of MA Plan Bids (2018)",
+        x = "Plan Bids",
+        y = "Frequency"
+    )+
+    theme_minimal()
+```
+
+### 3. Plot the average HHI over time from 2014 through 2019. How has the HHI changed over time? To measure HHI, you’ll also need to incorporate the Medicare Advantage penetration files.
+
+```{r}
+# | echo = false
+
+
+```
+
+
+
+
+```{r}
+plan_counts
 ```
