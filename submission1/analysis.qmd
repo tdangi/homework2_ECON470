@@ -9,7 +9,7 @@ format: pdf
 
 #load library
 library(pacman)
-p_load(tidyverse, ggplot2, dplyr, lubridate, stringr, readxl, data.table, gdata, scales, kableExtra)
+p_load(tidyverse, ggplot2, dplyr, lubridate, stringr, readxl, data.table, gdata, scales, kableExtra, Matching)
 
 # load data
 setwd("/Users/tammydang/Downloads/EMORY/ECON-470/homework2_ECON470/submission1")
@@ -72,7 +72,7 @@ The highest distribution of plan bids in 2014 is slightly more than 8000. The hi
 # 4. plot frequency hist of plan bids, then compare how it changes over time
 
 #filter for 2014 and 2018 onlyv & construct plan bids
-ggplot(ma_data_rm %>% filter(year == 2014), aes(x=bid))+
+ggplot(ma_data %>% filter(year == 2014), aes(x=bid))+
     geom_histogram(bins=30, fill= "skyblue", color="black")+
     labs(
         title = "Distribution of MA Plan Bids (2014)",
@@ -86,7 +86,7 @@ ggplot(ma_data_rm %>% filter(year == 2014), aes(x=bid))+
 ```{r}
 #| echo: false
 # 2018 plan bids
-ggplot(ma_data_rm %>% filter(year == 2018), aes(x=bid))+
+ggplot(ma_data %>% filter(year == 2018), aes(x=bid))+
     geom_histogram(bins=30, fill= "blue", color="black")+
     labs(
         title = "Distribution of MA Plan Bids (2018)",
@@ -102,7 +102,7 @@ The average HHI for Medicare Advantage markets between 2014-2019 shows how MA ma
 #| echo: false
 
 #create market share calculation and  compute hhi by county year level
-ma_hhi <- ma_data_rm %>%
+ma_hhi <- ma_data %>%
     group_by(year, county) %>%
     mutate(
         market_share = avg_enrolled / n_enrol, na.rm=TRUE) %>%
@@ -137,7 +137,7 @@ ggplot(avg_hhi, aes(x=year, y=avg_hhi))+
 # MA share = # MA enrollees / # medicare eligibles
 
 #compute MA penetration at the county year level
-ma_penetration <- ma_data_rm %>%
+ma_penetration <- ma_data %>%
     group_by(year, county) %>%
     summarise(
         ma_share = mean(n_enrol / n_elig, na.rm = TRUE),
@@ -166,12 +166,14 @@ ggplot(avg_ma_share, aes(x=year, y=avg_ma_share))+
 
 ```
 
+# Part II: Estimate ATEs
+Construct this ma_hhi2 for part 2:
 ```{r}
 #| include = FALSE
 
 # Construct county-level GA MA data, define treatment, and build analysis dataset (R)
 #to be used for PART II
-ma_hhi2 <- ma_data_rm %>%
+ma_hhi2 <- ma_data %>%
     group_by(year, county) %>%
     mutate(
         ma_share = if_else(n_enrol > 0,
@@ -184,7 +186,8 @@ ma_hhi2 <- ma_data_rm %>%
         avg_premium_partc = mean(premium_partc, na.rm =TRUE),
         share_pos_premiums = mean(premium_partc > 0, na.rm = TRUE),
         avg_bid            = mean(bid, na.rm = TRUE),
-        avg_eligibles      = first(avg_eligibles)
+        avg_eligibles      = first(avg_eligibles),
+        ffs_cost           = first(avg_ffscost)
     ) %>%
     ungroup()
 
@@ -196,7 +199,8 @@ vars <- c(
 "avg_premium_partc",
 "share_pos_premiums",
 "avg_bid",
-"avg_eligibles"
+"avg_eligibles",
+"ffs_cost"
 )
 
 
@@ -225,6 +229,7 @@ variable,
 "share_pos_premiums" = "Share with positive premium",
 "avg_bid"            = "Avg bid",
 "avg_eligibles"      = "Avg eligibles",
+"ffs_cost"           = "Avg FFS cost"
 ),
 across(c(mean, sd, min, max), ~round(., 2))
 )
@@ -232,7 +237,6 @@ across(c(mean, sd, min, max), ~round(., 2))
 ma_summary
 ```
 
-# Part II: Estimate ATEs
 For the rest of the assignment, you should include only observations in 2018. As we did in class, please define “competitive” markets as those with HHIs in the lower 33rd percentile of the national distribution of HHI, and define “concentrated” or “uncompetitive” markets as with with HHIs in the upper 66th percentile. This is somewhat arbitrary but it allows us to define a binary treatment variable in a way that we can more easily implement the methods in this module.
 ```{r}
 #| include = FALSE
@@ -250,8 +254,8 @@ hhi_cutoffs <- quantile(
 hhi_2018 <- hhi_2018 %>%
   mutate(
     market_type = case_when(
-      hhi_ma <= hhi_cutoffs[1] ~ "competitive",
-      hhi_ma >= hhi_cutoffs[2] ~ "concentrated",
+      hhi_ma <= hhi_cutoffs[1] ~ "competitive (control)",
+      hhi_ma >= hhi_cutoffs[2] ~ "concentrated (treated)",
       TRUE ~ NA_character_
     )
   )
@@ -261,7 +265,7 @@ hhi_2018 <- hhi_2018 %>%
 hhi_2018 <- hhi_2018 %>%
   filter(!is.na(market_type)) %>%
   mutate(
-    treat = ifelse(market_type == "concentrated", 1, 0)
+    treat = ifelse(market_type == "concentrated (treated)", 1, 0)
   )
 
 #check
@@ -274,7 +278,7 @@ table(hhi_2018$treat)
 #| echo: false
 avg_bid_by_market <- hhi_2018 %>%
   mutate(
-    market_type = ifelse(treat == 1, "Concentrated", "Competitive")
+    market_type = ifelse(treat == 1, "Concentrated (treated)", "Competitive (control)")
   ) %>%
   group_by(market_type) %>%
   summarize(
@@ -282,14 +286,65 @@ avg_bid_by_market <- hhi_2018 %>%
     .groups = "drop"
   )
 
-avg_bid_by_market
+print(avg_bid_by_market)
 ```
 
 
 ### 6. Split markets into quartiles based on Medicare fee-for-service (FFS) costs. To do this, create 4 new indicator variables, where each variable is set to 1 if the FFS costs falls into the relevant quartile. Provide a table of the average bid among treated/control groups for each quartile. For this, you’ll need to incorporate the FFS costs data as well.
 ```{r}
 # | echo = FALSE
-# I dont have FFS cost variable? <- might have to go back and retrieve it somewhere
+#continue using filter hhi_2018
+#national quartile cutoffs for average FFS costs
+ffs_q <- quantile(
+    hhi_2018$ffs_cost,
+    probs = c(0.25, 0.50, 0.75),
+    na.rm = TRUE
+)
+
+# create 4 quartile indicator variables. Each indicator equals 1 if the country falls in that quartile, 0 otherwise
+hhi_2018 <- hhi_2018 %>%
+    mutate(
+        ffs_q1 = ifelse(ffs_cost <= ffs_q[1], 1, 0),
+        ffs_q2 = ifelse(ffs_cost >  ffs_q[1] & ffs_cost <= ffs_q[2], 1, 0),
+        ffs_q3 = ifelse(ffs_cost >  ffs_q[2] & ffs_cost <= ffs_q[3], 1, 0),
+        ffs_q4 = ifelse(ffs_cost >  ffs_q[3], 1, 0)
+  )
+# check
+#table(hhi_2018$ffs_q1 + hhi_2018$ffs_q2 + hhi_2018$ffs_q3 + hhi_2018$ffs_q4) #we want all 1s
+
+# create quartile label
+hhi_2018 <- hhi_2018 %>%
+    mutate(
+        ffs_quartile = case_when(
+            ffs_q1 == 1 ~ "Q1",
+            ffs_q2 == 1 ~ "Q2",
+            ffs_q3 == 1 ~ "Q3",
+            ffs_q4 == 1 ~ "Q4"
+        )
+    )
+
+# create average bid table
+avg_bid_table <- hhi_2018 %>%
+    group_by(ffs_quartile, market_type) %>%
+    summarise(
+        avg_bid = mean(avg_bid, na.rm = TRUE),
+        n_counties = n(),
+        .groups = "drop"
+    )
+
+# drop NA quartile and reshape to treated vs control side-by side
+avg_bid_table_clean <- avg_bid_table %>%
+  filter(!is.na(ffs_quartile))
+
+avg_bid_wide <- avg_bid_table_clean %>%
+  select(ffs_quartile, market_type, avg_bid) %>%
+  pivot_wider(
+    names_from  = market_type,
+    values_from = avg_bid
+  )
+
+print(avg_bid_wide)
+
 ```
 
 ### 7. Find the average treatment effect using each of the following estimators, and present your results in a single table:
@@ -301,6 +356,75 @@ avg_bid_by_market
 
 ```{r}
 #| echo: false
+# use library(Matching)
+# drop observations with missing values:
+hhi_match <- hhi_2018 %>%
+  filter(
+    !is.na(avg_bid),
+    !is.na(treat),
+    !is.na(ffs_q1),
+    !is.na(ffs_q2),
+    !is.na(ffs_q3),
+    !is.na(ffs_q4)
+  )
+
+######################
+# nearest neighbor matching (1-to-1) with inverse variance cooks.distance
+######################
+# treat 1 = concentrated, 0 = competitive
+nn.est1 <- Match(Y = hhi_match$avg_bid,
+                Tr = hhi_match$treat,
+                X = cbind(
+                        hhi_match$ffs_q1,
+                        hhi_match$ffs_q2,
+                        hhi_match$ffs_q3,
+                        hhi_match$ffs_q4
+                         ),
+                M = 1,
+                Weight = 1,
+                estimand = "ATE"
+                )
+
+summary(nn.est1)
+
+######################
+# nearest neighbor matching with mahalnobis
+######################
+nn.est2 <- Match(Y = hhi_match$avg_bid,
+                Tr = hhi_match$treat,
+                X = cbind(
+                        hhi_match$ffs_q1,
+                        hhi_match$ffs_q2,
+                        hhi_match$ffs_q3,
+                        hhi_match$ffs_q4
+                         ),
+                M = 1,
+                Weight = 2,
+                estimand = "ATE"
+                )
+summary(nn.est2)
+
+#######################
+# inverse propoensity weighting
+#######################
+logit.model <- glm(treat~cbind(
+                        hhi_match$ffs_q1,
+                        hhi_match$ffs_q2,
+                        hhi_match$ffs_q3,
+                        hhi_match$ffs_q4
+                         ), family = binomial, data=hhi_match)
+ps <- fitted(logit.model) #propensity score to include weight
+
+hhi_weight <- hhi_match %>%
+    mutate(ipw = case_when(
+        treat==1 ~ 1/ps,
+        treat==0 ~ 1(1-ps),
+        TRUE ~ NA_real_
+    ))
+
+mean.treat1 <- hhi_weight %>% filter(treat==1) %>%
+    select(avg_bid, ipw) %>% summarise(mean_y = weighted.mean(avg_bid, ipw))
+
 
 ```
 
