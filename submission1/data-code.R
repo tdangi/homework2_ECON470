@@ -2,7 +2,7 @@
 library(pacman)
 p_load(tidyverse, ggplot2, dplyr, lubridate, stringr, readxl, data.table, gdata, scales, kableExtra, modelsummary)
 getwd()
-
+setwd("/Users/tammydang/Downloads/EMORY/ECON-470")
 #load datasets
 dat.2014 <- read_csv("hmwk_data/data-2014.csv")
 dat.2015 <- read_csv("hmwk_data/data-2015.csv")
@@ -39,15 +39,17 @@ str(na.full)
 
 #clean year column and merge into one column
 names(na.full)[grepl("year", names(na.full))]
-tail(na.full[, c("year.x", "year.y", "year.x.x", "year.y.y")]) #all the same
+tail(na.full[, c("year","year.x", "year.y", "year.x.x", "year.y.y")]) #all the same
+sum(is.na(na.full$year))
 sum(is.na(na.full$year.x)) #keep year.x
 sum(is.na(na.full$year.y))
 sum(is.na(na.full$year.x.x))
 sum(is.na(na.full$year.y.y))
+unique(na.full$year)
 unique(na.full$year.x)
 #keep year x and remove the other years
 na.full <- na.full %>%
-    select(-year.y, -year.x.x, -year.y.y) %>%
+    select(-year.y, -year.x.x, -year.y.y, -year) %>%
     rename(year = year.x)
 
 
