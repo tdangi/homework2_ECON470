@@ -1,9 +1,7 @@
 ---
-jupyter:
-  kernelspec:
-    display_name: R
-    language: R
-    name: ir
+title: ECON 470 Homework 2 Submission 1
+author: Tammy Dang
+format: pdf
 ---
 
 ```{r}
@@ -14,7 +12,7 @@ library(pacman)
 p_load(tidyverse, ggplot2, dplyr, lubridate, stringr, readxl, data.table, gdata, scales, kableExtra)
 
 # load data
-ma_data <- read_csv("hmwk_data/data_2014-2019.csv")
+ma_data <- read_csv("../../hmwk_data/data_2014-2019.csv")
 str(ma_data)
 ```
 
@@ -28,7 +26,7 @@ Based on the box-and-whisker plot, the number of plans per county for each year 
 #| echo: false
 
 #check plan types
-unique(ma_data$plan_type)
+#unique(ma_data$plan_type)
 
 #remove all rows that are SNPs, 800-series plans, and prescription drug only plans
 ma_data_rm <- ma_data %>%
@@ -38,7 +36,7 @@ ma_data_rm <- ma_data %>%
     !grepl("Prescription", plan_type, ignore.case = TRUE) # remove Part D only plans
           ) 
 #check
-unique(ma_data_rm$plan_type)
+#unique(ma_data_rm$plan_type)
 
 # count plans by county and year
 plan_counts <- ma_data_rm %>%
@@ -64,7 +62,7 @@ ggplot(plan_counts, aes(x=factor(year), y=n_plans))+
 ### 2. Provide frequency histograms showing the distribution of plan bids in 2014 and 2018. How has this distribution changed over time? To properly measure plan bids, you need to incorporate the landscape files (in the plan characteristics code files) and the risk/rebate data. The build data code file in the Medicare Advantage GitHub repository shows how to back out plan bids from the observed premium and rebate data.
 The highest distribution of plan bids in 2014 is slightly more than 8000. The highest distribution of plan bids in 2018 is around 10000. This reveals that plan bids have increased, over time. 
 ```{r}
-# | echo = false
+#| echo: false
 # 1. use plan bids
 # 2. Do this for 2014 and 2018 only
 # 3. use: plan characteristics, risk/rebate file
@@ -83,7 +81,7 @@ ggplot(ma_data_rm %>% filter(year == 2014), aes(x=bid))+
 ```
 
 ```{r}
-# | echo = false
+#| echo: false
 # 2018 plan bids
 ggplot(ma_data_rm %>% filter(year == 2018), aes(x=bid))+
     geom_histogram(bins=30, fill= "blue", color="black")+
@@ -96,16 +94,220 @@ ggplot(ma_data_rm %>% filter(year == 2018), aes(x=bid))+
 ```
 
 ### 3. Plot the average HHI over time from 2014 through 2019. How has the HHI changed over time? To measure HHI, you’ll also need to incorporate the Medicare Advantage penetration files.
-
+The average HHI for Medicare Advantage markets between 2014-2019 shows how MA markets are concentrated and become even more highly concentrated over time. With high increases in average HHI across years suggests growing concentration and consolidation in the counties over time. Despite growth in the number of plans, enrollments continues to get more and mroe concentrated among a smaller number of insurers, decreasing competition in the market over time. 
 ```{r}
-# | echo = false
+#| echo: false
 
+#create market share calculation and  compute hhi by county year level
+ma_hhi <- ma_data_rm %>%
+    group_by(year, county) %>%
+    mutate(
+        market_share = avg_enrolled / n_enrol, na.rm=TRUE) %>%
+    summarise(hhi = sum(market_share^2), na.rm = TRUE, 
+    .groups="drop"
+    )
 
+#compute avg HHI by year (2014-2019)
+avg_hhi <- ma_hhi %>%
+    group_by(year) %>%
+    summarise(avg_hhi = mean(hhi, na.rm=TRUE),
+    .groups ="drop"
+    )
+
+#plot average hhi over time
+ggplot(avg_hhi, aes(x=year, y=avg_hhi))+
+    geom_line()+
+    geom_point()+
+    labs(
+        title = "Average Medicare Advantage HHI, 2014-2019",
+        x = "Year",
+        y = "Average HHI"
+    )+
+    theme_minimal()
 ```
 
 
+### 4. Plot the average share of Medicare Advantage (relative to all Medicare eligibles) over time from 2014 through 2019. Has Medicare Advantage increased or decreased in popularity?
+
+```{r}
+#| echo: false
+# MA share = # MA enrollees / # medicare eligibles
+
+#compute MA penetration at the county year level
+ma_penetration <- ma_data_rm %>%
+    group_by(year, county) %>%
+    summarise(
+        ma_share = mean(n_enrol / n_elig, na.rm = TRUE),
+        .groups = "drop"
+    )
+
+#compute average MA by year
+avg_ma_share <- ma_penetration %>%
+    group_by(year) %>%
+    summarise(
+        avg_ma_share = mean(ma_share, na.rm = TRUE),
+        .groups = "drop"
+    )
+
+# plot average ma share over time
+ggplot(avg_ma_share, aes(x=year, y=avg_ma_share))+
+    geom_line(color = "darkblue")+
+    geom_point()+
+    scale_y_continuous(labels = percent_format(accuracy = 1))+
+    labs(
+        title = "Average Medicare Advantage Penetration (2014-2019)",
+        x = "Year",
+        y = "Share of Medicare Beneficiaries Enrolled in MA"
+    )+
+    theme_minimal()
+
+```
+
+```{r}
+#| include = FALSE
+
+# Construct county-level GA MA data, define treatment, and build analysis dataset (R)
+#to be used for PART II
+ma_hhi2 <- ma_data_rm %>%
+    group_by(year, county) %>%
+    mutate(
+        ma_share = if_else(n_enrol > 0,
+        (avg_enrolled / n_enrol) * 100,
+        NA_real_
+        )) %>%
+    summarise(
+        hhi_ma            = sum(ma_share^2), na.rm = TRUE,
+        plan_count     = n_distinct(contractid, planid),
+        avg_premium_partc = mean(premium_partc, na.rm =TRUE),
+        share_pos_premiums = mean(premium_partc > 0, na.rm = TRUE),
+        avg_bid            = mean(bid, na.rm = TRUE),
+        avg_eligibles      = first(avg_eligibles)
+    ) %>%
+    ungroup()
+
+
+# OVERALL SUMMARY #################
+vars <- c(
+"hhi_ma",
+"plan_count",
+"avg_premium_partc",
+"share_pos_premiums",
+"avg_bid",
+"avg_eligibles"
+)
+
+
+ma_summary <- ma_hhi2 %>%
+pivot_longer(
+cols      = all_of(vars),
+names_to  = "variable",
+values_to = "value"
+) %>%
+group_by(variable) %>%
+summarize(
+n_nonmissing = sum(!is.na(value)),
+n_missing    = sum(is.na(value)),
+mean         = mean(value, na.rm = TRUE),
+sd           = sd(value,   na.rm = TRUE),
+min          = min(value,  na.rm = TRUE),
+max          = max(value,  na.rm = TRUE),
+.groups      = "drop"
+) %>%
+mutate(
+variable = recode(
+variable,
+"hhi_ma"             = "MA HHI",
+"plan_count"         = "# of plans",
+"avg_premium_partc"  = "Avg Part C premium",
+"share_pos_premiums" = "Share with positive premium",
+"avg_bid"            = "Avg bid",
+"avg_eligibles"      = "Avg eligibles",
+),
+across(c(mean, sd, min, max), ~round(., 2))
+)
+# check how many missing variables we have
+ma_summary
+```
+
+# Part II: Estimate ATEs
+For the rest of the assignment, you should include only observations in 2018. As we did in class, please define “competitive” markets as those with HHIs in the lower 33rd percentile of the national distribution of HHI, and define “concentrated” or “uncompetitive” markets as with with HHIs in the upper 66th percentile. This is somewhat arbitrary but it allows us to define a binary treatment variable in a way that we can more easily implement the methods in this module.
+```{r}
+#| include = FALSE
+# include only observations hhi 2018
+hhi_2018 <- ma_hhi2 %>%
+filter(year == 2018)
+
+# compute HHI cutoffs
+hhi_cutoffs <- quantile(
+    hhi_2018$hhi_ma,
+    probs = c(0.33, 0.66),
+    na.rm = TRUE
+)
+# define market competitiveness .LC.categories
+hhi_2018 <- hhi_2018 %>%
+  mutate(
+    market_type = case_when(
+      hhi_ma <= hhi_cutoffs[1] ~ "competitive",
+      hhi_ma >= hhi_cutoffs[2] ~ "concentrated",
+      TRUE ~ NA_character_
+    )
+  )
+
+
+# create binary treatment variable 1 = uncompetitive, 0 for competitive. Middle group excluded
+hhi_2018 <- hhi_2018 %>%
+  filter(!is.na(market_type)) %>%
+  mutate(
+    treat = ifelse(market_type == "concentrated", 1, 0)
+  )
+
+#check
+table(hhi_2018$treat)
+
+```
+
+### 5. Calculate the average bid among competitive versus uncompetitive markets.
+```{r}
+#| echo: false
+avg_bid_by_market <- hhi_2018 %>%
+  mutate(
+    market_type = ifelse(treat == 1, "Concentrated", "Competitive")
+  ) %>%
+  group_by(market_type) %>%
+  summarize(
+    avg_bid = mean(avg_bid, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+avg_bid_by_market
+```
+
+
+### 6. Split markets into quartiles based on Medicare fee-for-service (FFS) costs. To do this, create 4 new indicator variables, where each variable is set to 1 if the FFS costs falls into the relevant quartile. Provide a table of the average bid among treated/control groups for each quartile. For this, you’ll need to incorporate the FFS costs data as well.
+```{r}
+# | echo = FALSE
+# I dont have FFS cost variable? <- might have to go back and retrieve it somewhere
+```
+
+### 7. Find the average treatment effect using each of the following estimators, and present your results in a single table:
+- Nearest neighbor matching (1-to-1) with inverse variance distance based on quartiles of FFS costs
+- Nearest neighbor matching (1-to-1) with Mahalanobis distance based on quartiles of FFS costs
+- Inverse propensity weighting, where the propensity scores are based on quartiles of FFS costs
+- Simple linear regression, adjusting for quartiles of FFS costs using dummy variables and appropriate interactions as discussed in class
 
 
 ```{r}
-plan_counts
+#| echo: false
+
 ```
+
+### 8. With these different treatment effect estimators, are the results similar, identical, very different?
+> I would guess that the results are similar.
+
+### 9. Pick your favorite flavor of estimators in this section (matching, weighting, regression, etc) and re-estimate treatment effects using the continuous FFS costs variable as well as total Medicare beneficiaries as your covariates. How does this result compare to the analogous estimate when matching/weighting only on FFS quartile?
+```{r}
+#| echo: false
+```
+
+### 10. Briefly describe your experience working with these data (just a few sentences). Tell me one thing you learned and one thing that really aggravated or surprised you.
+Working with this data, I was really aggravated by the amount of time and errors it took to combine the dataset together. One thing that surprised me was how I kept having to go back to the data cleaning part to retrieve something I accidentally left out. It goes to show how important the data cleaning process is, and how intentional you have to be when cleaning it in order to have a smooth process when answering the questions.
