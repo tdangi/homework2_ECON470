@@ -12,6 +12,7 @@ library(pacman)
 p_load(tidyverse, ggplot2, dplyr, lubridate, stringr, readxl, data.table, gdata, scales, kableExtra)
 
 # load data
+setwd("/Users/tammydang/Downloads/EMORY/ECON-470/homework2_ECON470/submission1")
 ma_data <- read_csv("../../hmwk_data/data_2014-2019.csv")
 str(ma_data)
 ```
@@ -29,17 +30,19 @@ Based on the box-and-whisker plot, the number of plans per county for each year 
 #unique(ma_data$plan_type)
 
 #remove all rows that are SNPs, 800-series plans, and prescription drug only plans
-ma_data_rm <- ma_data %>%
-    filter(
-    !grepl("SNP", plan_type),             # remove any plan with "SNP" in its type
-    !plan_type %in% c("1876 Cost"),       # remove 800-series plans (e.g., 1876 Cost)
-    !grepl("Prescription", plan_type, ignore.case = TRUE) # remove Part D only plans
-          ) 
+
+# DONT NEED TO FILTER CAUSE I ALREADY DID IN MA-DATA!!!!
+#ma_data_rm <- ma_data %>%
+#    filter(
+#    !grepl("SNP", plan_type),             # remove any plan with "SNP" in its type
+#    !plan_type %in% c("1876 Cost"),       # remove 800-series plans (e.g., 1876 Cost)
+#    !grepl("Prescription", plan_type, ignore.case = TRUE) # remove Part D only plans
+#          ) 
 #check
-#unique(ma_data_rm$plan_type)
+unique(ma_data$plan_type)
 
 # count plans by county and year
-plan_counts <- ma_data_rm %>%
+plan_counts <- ma_data %>%
     group_by(year, county) %>%
     summarise(
         n_plans = n(),
