@@ -1,5 +1,5 @@
 ---
-title: ECON 470 Homework 2 Submission 1
+title: ECON 470 Homework 2 Submission 2
 author: Tammy Dang
 format: pdf
 ---
@@ -39,7 +39,7 @@ Based on the box-and-whisker plot, the number of plans per county for each year 
 #    !grepl("Prescription", plan_type, ignore.case = TRUE) # remove Part D only plans
 #          ) 
 #check
-unique(ma_data$plan_type)
+#unique(ma_data$plan_type)
 
 # count plans by county and year
 plan_counts <- ma_data %>%
@@ -292,7 +292,7 @@ print(avg_bid_by_market)
 
 ### 6. Split markets into quartiles based on Medicare fee-for-service (FFS) costs. To do this, create 4 new indicator variables, where each variable is set to 1 if the FFS costs falls into the relevant quartile. Provide a table of the average bid among treated/control groups for each quartile. For this, you’ll need to incorporate the FFS costs data as well.
 ```{r}
-# | echo = FALSE
+#| echo = FALSE
 #continue using filter hhi_2018
 #national quartile cutoffs for average FFS costs
 ffs_q <- quantile(
@@ -337,8 +337,8 @@ avg_bid_table_clean <- avg_bid_table %>%
   filter(!is.na(ffs_quartile))
 
 avg_bid_wide <- avg_bid_table_clean %>%
-  select(ffs_quartile, market_type, avg_bid) %>%
-  pivot_wider(
+  dplyr::select(ffs_quartile, market_type, avg_bid) %>%
+  tidyr::pivot_wider(
     names_from  = market_type,
     values_from = avg_bid
   )
@@ -368,8 +368,13 @@ hhi_match <- hhi_2018 %>%
     !is.na(ffs_q4)
   )
 
+```
+
+### Nearest neighbor matching (1-to-1) with inverse variance
+```{r}
+#| echo: false
 ######################
-# nearest neighbor matching (1-to-1) with inverse variance cooks.distance
+# nearest neighbor matching (1-to-1) with inverse variance 
 ######################
 # treat 1 = concentrated, 0 = competitive
 nn.est1 <- Match(Y = hhi_match$avg_bid,
@@ -386,10 +391,11 @@ nn.est1 <- Match(Y = hhi_match$avg_bid,
                 )
 
 summary(nn.est1)
+```
 
-######################
-# nearest neighbor matching with mahalnobis
-######################
+### nearest neighbor matching with mahalnobis
+```{r}
+#| echo: false
 nn.est2 <- Match(Y = hhi_match$avg_bid,
                 Tr = hhi_match$treat,
                 X = cbind(
@@ -403,10 +409,11 @@ nn.est2 <- Match(Y = hhi_match$avg_bid,
                 estimand = "ATE"
                 )
 summary(nn.est2)
+```
 
-#######################
-# inverse propoensity weighting
-#######################
+### inverse propoensity weighting
+```{r}
+#| echo: false
 logit.model <- glm(treat~cbind(
                         hhi_match$ffs_q1,
                         hhi_match$ffs_q2,
@@ -418,22 +425,57 @@ ps <- fitted(logit.model) #propensity score to include weight
 hhi_weight <- hhi_match %>%
     mutate(ipw = case_when(
         treat==1 ~ 1/ps,
-        treat==0 ~ 1(1-ps),
+        treat==0 ~ 1/(1-ps),
         TRUE ~ NA_real_
     ))
 
 mean.treat1 <- hhi_weight %>% filter(treat==1) %>%
-    select(avg_bid, ipw) %>% summarise(mean_y = weighted.mean(avg_bid, ipw))
+    dplyr::select(avg_bid, ipw) %>% summarise(mean_y = weighted.mean(avg_bid, ipw))
+mean.treat0 <- hhi_weight %>% filter(treat==0) %>%
+    dplyr::select(avg_bid, ipw) %>% summarise(mean_y = weighted.mean(avg_bid, ipw))
 
+ate_ipw = mean.treat1 - mean.treat0
+
+#reweighted ate result
+ate_ipw
+```
+
+### SLRegression w/ the 4 quartiles
+```{r}
+#| echo: false
+#outcome if you're treated
+reg1.data <- hhi_match %>% filter(treat==1)
+reg1 <- lm(avg_bid ~ factor(ffs_quartile), data=reg1.data)
+
+# outcome if you're in control group
+reg0.data <- hhi_match%>% filter(treat==0)
+reg0 <- lm(avg_bid ~ factor(ffs_quartile), data = reg0.data)
+
+
+#2 predictors for every person then minus both for ATE
+pred1 <- predict(reg1, new=hhi_weight)
+pred0 <- predict(reg0, new=hhi_weight)
+ATE <- pred1-pred0
+summary(ATE)
 
 ```
 
 ### 8. With these different treatment effect estimators, are the results similar, identical, very different?
-> I would guess that the results are similar.
+> The results of each ATE, ipw, or estimates are identical to each other.
 
 ### 9. Pick your favorite flavor of estimators in this section (matching, weighting, regression, etc) and re-estimate treatment effects using the continuous FFS costs variable as well as total Medicare beneficiaries as your covariates. How does this result compare to the analogous estimate when matching/weighting only on FFS quartile?
+I will use nearest neighbor matching with malhanobis. The result of this estimate is less robust in terms of unweighted matched number of observations in comparison to when we only match on FFS quartile. In addition, the results are not statistically significant, with a wider standard error overall.
 ```{r}
 #| echo: false
+# avg_bid ~ ffs_cost  + avg_eligibles, treat = treat
+nn.est_mal <- Match(Y = hhi_match$avg_bid,
+                    Tr = hhi_match$treat,
+                    X = cbind(hhi_match$ffs_cost, hhi_match$avg_eligibles),
+                    M = 1,
+                    Weight = 2,
+                    estimand = "ATE"
+                    )
+summary(nn.est_mal)
 ```
 
 ### 10. Briefly describe your experience working with these data (just a few sentences). Tell me one thing you learned and one thing that really aggravated or surprised you.
