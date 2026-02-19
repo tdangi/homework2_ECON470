@@ -1,5 +1,5 @@
 ---
-title: ECON 470 Homework 2 Submission 2
+title: ECON 470 Homework 2 Submission 3
 author: Tammy Dang
 format: pdf
 ---
@@ -479,4 +479,4 @@ summary(nn.est_mal)
 ```
 
 ### 10. Briefly describe your experience working with these data (just a few sentences). Tell me one thing you learned and one thing that really aggravated or surprised you.
-Working with this data, I was really aggravated by the amount of time and errors it took to combine the dataset together. One thing that surprised me was how I kept having to go back to the data cleaning part to retrieve something I accidentally left out. It goes to show how important the data cleaning process is, and how intentional you have to be when cleaning it in order to have a smooth process when answering the questions.
+Working with this data, I was really aggravated by the amount of time and errors it took to combine the dataset together. One thing that surprised me was how I kept having to go back to the data cleaning part to retrieve something I accidentally left out. It goes to show how important the data cleaning process is, and how intentional you have to be when cleaning it in order to have a smooth process when answering the questions. I'm honestly still not sure how I could fix the dataset because I'm getting different results and distributions.

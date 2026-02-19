@@ -1,0 +1,494 @@
+---
+title: "Homework 2"
+subtitle: "Research Methods, Spring 2026"
+author: "Answer Key"
+format:
+  pdf:
+    output-file: "mccarthy-i-hwk2-1"
+    output-ext:  "pdf"
+    header-includes:
+      - \usepackage{float}
+      - \floatplacement{table}{H}
+---
+
+```{r}
+#| include: false
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, ggplot2, dplyr, lubridate, stringr, readxl, data.table, gdata, scales, kableExtra, modelsummary)
+
+f <- function(x) {
+  r <- quantile(x, probs = c(0.10, 0.25, 0.5, 0.75, 0.90))
+  names(r) <- c("ymin","lower","middle","upper","ymax")
+  r
+}
+
+dat.2014 <- read_csv("data/output/data-2014.csv")
+dat.2015 <- read_csv("data/output/data-2015.csv")
+dat.2016 <- read_csv("data/output/data-2016.csv")
+dat.2017 <- read_csv("data/output/data-2017.csv")
+dat.2018 <- read_csv("data/output/data-2018.csv")
+dat.2019 <- read_csv("data/output/data-2019.csv")
+
+ma.full <- rbind(dat.2014, dat.2015, dat.2016, dat.2017, dat.2018, dat.2019)
+
+```
+
+My answers to the homework questions are described below. Note that I build the individual data for these answers in separate scripts. You can read in the full data as part of your markdown file, but that takes some time to compile to pdf. The GitHub repository for this work is available [here](https://github.com/imccart/econ470-spring2026-hwk2.git). Enjoy!
+
+\newpage
+
+# Summarize the data
+
+\noindent 1. Remove all SNPs, 800-series plans, and prescription drug only plans (i.e., plans that do not offer Part C benefits). Provide a box and whisker plot showing the distribution of plan counts by county over time. Do you think that the number of plans is sufficient, too few, or too many?
+
+The goal of this graph is to illustrate how many plans are available to an average enrollee in an average county. We remove SNPs, 800-series plans, and Part D only plans in order to focus on a more similar product that is available to everyone. For consistency with the rest of the analysis, I've also removed plans with missing plan IDs, plans in US territories, and plans not operating in an approved service area. The resulting box and whisker plot is provided in @fig-final-plan, which provides a sense of the distribution of plan counts across counties in each year.
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: fig-final-plan
+#| fig-cap: "Plan Counts by County over Time"
+
+ma.full %>% 
+  group_by(fips, year) %>% 
+  select(fips, year) %>% summarize(plan_count=n()) %>%
+  ggplot(aes(x=as.factor(year),y=plan_count)) + 
+  stat_summary(fun.data=f, geom="boxplot") +
+  labs(
+    x="Year",
+    y="Number of Plans"
+  ) + scale_y_continuous(labels=comma) +
+  theme_bw()
+```
+
+
+\newpage
+\noindent 2. Provide frequency histograms showing the distribution of plan bids in 2014 and 2018. How has this distribution changed over time? 
+
+The distribution of bids is presented in @fig-bids. As is evident from the figure, the distribution of bids largely overlaps between 2014 and 2018; however, there has been a slight leftward shift over time, reflecting a slight decline in MA bids over this time period (in nominal dollars). This is likely due to increased CMS pressure on MA plan bids. In particular, the ACA lowered and restructured MA county benchmarks, tying them more tightly to local FFS spending and reducing benchmarks most in high-spending areas. Since MA plans bid largely according to benchmark levels (seeking to keep bids below benchmark whenever possible), this induced plans to submit lower bids over time, with average bids falling from about 98% of FFS in 2014 to roughly 90% by 2018 (MedPAC 2014 and 2018 reports).
+
+```{r}
+#| echo: false
+#| label: fig-bids
+#| fig-cap: "Bids for Selected Years"
+
+ma.full %>% 
+  filter(year %in% c(2014, 2018), !is.na(bid)) %>%
+  ggplot(aes(x = bid, fill = as.factor(year))) + 
+  geom_histogram(
+    position = "identity",
+    alpha    = 0.6,
+    bins     = 40
+  ) +
+  scale_fill_grey() +
+  labs(
+    x    = "Bid",
+    y    = "Count of Plans",
+    fill = "Year"
+  ) + 
+  theme_bw() +
+  scale_y_continuous(labels = comma)
+
+```
+
+
+\newpage
+\noindent 3. Plot the average HHI over time from 2014 through 2019. How has the HHI changed over time? 
+
+Average HHIs are presented in @fig-hhi-plot. As we can see, HHI has actually been decreasing over time, indicating that MA markets have become more competitive over this time period. This is consistent with CMS and MedPAC reports indicating that MA plan participation has increased over this time period, with more plans entering markets and competing for enrollees. Note that, while local markets have become more competitive, the overall national market (at the insurer level) for MA plans remains fairly concentrated, with average HHIs above 2,500 throughout this time period.
+
+
+```{r}
+#| echo: false
+#| label: fig-hhi-plot
+#| fig-cap: "Average HHI over Time"
+
+ma.full %>% 
+  mutate(
+    mkt_share = if_else(
+      avg_enrolled > 0,
+      (avg_enrollment / avg_enrolled) * 100,
+      NA_real_
+    )
+  ) %>%
+  group_by(fips, year) %>%
+  summarize(hhi=sum(mkt_share^2, na.rm=TRUE),
+            .groups="drop") %>%
+  group_by(year) %>%
+  summarize(hhi=mean(hhi, na.rm=TRUE), .groups="drop") %>%
+  ggplot(aes(x=as.factor(year),y=hhi, group=1)) + 
+  geom_line() +
+  geom_point() +
+  labs(
+    x="Year",
+    y="HHI"
+  ) + scale_y_continuous(labels=comma) +
+  theme_bw()
+
+```
+
+\newpage
+\noindent 4. Plot the average share of Medicare Advantage (relative to all Medicare eligibles) over time from 2014 through 2019. Has Medicare Advantage increased or decreased in popularity?
+
+Average MA market shares are presented in @fig-share-plot, showing a clear increase in MA enrollment over this time period. This is again consistent with CMS and MedPAC reports indicating that MA enrollment has been steadily increasing over this time period, reaching nearly 50% of all Medicare beneficiaries in recent years.
+
+```{r}
+#| echo: false
+#| label: fig-share-plot
+#| fig-cap: "Average MA Share over Time"
+
+ma.full %>% 
+  mutate(ma_share = avg_enrolled / avg_eligibles) %>%
+  filter(!is.na(ma_share)) %>%
+  distinct(fips, year, .keep_all = TRUE) %>%   # one row per county–year
+  group_by(year) %>%
+  summarize(
+    ma_share = weighted.mean(ma_share, w = avg_eligibles, na.rm = TRUE),
+    .groups  = "drop"
+  ) %>%
+  ggplot(aes(x = year, y = ma_share, group = 1)) + 
+  geom_line() +
+  geom_point() +
+  labs(
+    x = "Year",
+    y = "Weighted MA Share"
+  ) + 
+  scale_y_continuous(labels = percent) +
+  theme_bw()
+
+```
+
+
+\newpage
+For the rest of the assignment, you should include only observations in 2018. As we did in class, please define "competitive" markets as those with HHIs in the lower 33rd percentile of the national distribution of HHI, and define "concentrated" or "uncompetitive" markets as with with HHIs in the upper 66th percentile. This is somewhat arbitrary but it allows us to define a binary treatment variable in a way that we can more easily implement the methods in this module.
+
+```{r}
+#| include: false
+
+ma.hhi <- ma.full %>% filter(year==2018) %>%
+  group_by(fips) %>%
+  mutate(
+    ma_share = if_else(
+      avg_enrolled > 0,
+      (avg_enrollment / avg_enrolled) * 100,
+      NA_real_
+    ),
+    premium_partc=if_else(!is.na(premium_partc), premium_partc, 0)
+  ) %>%
+  summarize(hhi=sum(ma_share^2, na.rm=TRUE),
+            bid=mean(bid, na.rm=TRUE),
+            premium_partc=mean(premium_partc, na.rm=TRUE),
+            avg_ffscost=mean(avg_ffscost, na.rm=TRUE),
+            avg_eligibles=mean(avg_eligibles, na.rm=TRUE)) %>%
+  ungroup()
+
+q_hhi <- quantile(ma.hhi$hhi, probs = c(0.33, 0.66), na.rm = TRUE)
+
+ma.2018 <- ma.hhi %>%
+  mutate(
+    hhi_group = case_when(
+      hhi >= q_hhi[2] ~ "treated",  # top quartile: concentrated / low competition
+      hhi <= q_hhi[1] ~ "control",  # bottom quartile: competitive / high competition
+      TRUE               ~ NA_character_
+    ),
+    treated_dummy = case_when(
+      hhi_group == "treated" ~ 1L,
+      hhi_group == "control" ~ 0L,
+      TRUE                   ~ NA_integer_
+    )
+  ) %>%
+  filter(!is.na(hhi_group))
+
+```
+
+\noindent 5. Calculate the average bid among competitive versus uncompetitive markets.
+
+Mean bids, as well as mean premiums, FFS costs, and eligibles, are presented in @tbl-balance. We present results for both treated (high HHI) and control (low HHI) markets, as well as overall means for the same sample. As we can see, concentrated markets (high HHI) have slightly higher average bids and premiums than competitive markets (low HHI), as we might expect. Note that FFS costs and eligibles are also slightly higher in concentrated markets, which could be driving some of the differences in bids and premiums that we observe here.
+
+```{r}
+#| include: false
+
+by.group <- ma.2018 %>%
+  group_by(hhi_group) %>%
+  summarize(
+    avg_premium_partc   = mean(premium_partc,   na.rm = TRUE),
+    avg_bid             = mean(bid,             na.rm = TRUE),
+    ffs_cost            = mean(avg_ffscost,     na.rm = TRUE),
+    avg_eligibles       = mean(avg_eligibles,   na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols      = c(avg_premium_partc,
+                  avg_bid,
+                  ffs_cost,
+                  avg_eligibles),
+    names_to  = "variable",
+    values_to = "mean"
+  ) %>%
+  pivot_wider(
+    names_from  = hhi_group,
+    values_from = mean
+  )
+
+# Overall means (restricted to same sample)
+overall <- ma.2018 %>%
+  summarize(
+    avg_premium_partc   = mean(premium_partc,   na.rm = TRUE),
+    avg_bid             = mean(bid,             na.rm = TRUE),
+    ffs_cost            = mean(avg_ffscost,     na.rm = TRUE),
+    avg_eligibles       = mean(avg_eligibles,   na.rm = TRUE)
+  ) %>%
+  pivot_longer(
+    everything(),
+    names_to  = "variable",
+    values_to = "overall"
+  )
+
+# Final table: rows = vars, cols = treated / control / overall
+balance.table <- by.group %>%
+  left_join(overall, by = "variable")
+
+```
+
+```{r}
+#| label: tbl-balance
+#| tbl-cap: Balance table (2018)
+#| echo: false
+
+options(knitr.kable.NA = 0)
+knitr::kable(balance.table %>% 
+  mutate(
+    variable = recode(
+      variable,
+      avg_premium_partc = "Part C Premium",
+      avg_bid           = "Plan Bid",
+      ffs_cost          = "FFS Cost",
+      avg_eligibles     = "Medicare Eligibles"
+    )
+  ),
+  col.names=c("","Low HHI","High HHI","Overall"),
+  digits=2,
+  format.args=list(big.mark=","),
+  booktabs = TRUE) %>%
+  kable_styling(latex_options="hold_position")
+
+```
+
+\newpage
+\noindent 6. Split markets into quartiles based on Medicare fee-for-service (FFS) costs. To do this, create 4 new indicator variables, where each variable is set to 1 if the FFS costs falls into the relevant quartile. Provide a table of the average bid among treated/control groups for each quartile. For this, you’ll need to incorporate the FFS costs data as well.
+
+```{r}
+#| include: false
+treat.ma <- ma.2018 %>% filter(!is.na(avg_ffscost)) %>%
+  mutate(ffs_q1 = quantile(avg_ffscost, probs=0.25, na.rm=TRUE),
+         ffs_q2 = quantile(avg_ffscost, probs=0.50, na.rm=TRUE),
+         ffs_q3 = quantile(avg_ffscost, probs=0.75, na.rm=TRUE),
+         ffs_q4 = max(avg_ffscost, na.rm=TRUE)) %>%
+  mutate(ffs_cut1 = ifelse(avg_ffscost<  ffs_q1,1,0),
+         ffs_cut2 = ifelse(avg_ffscost>= ffs_q1 & avg_ffscost< ffs_q2,1,0),
+         ffs_cut3 = ifelse(avg_ffscost>= ffs_q2 & avg_ffscost< ffs_q3,1,0),
+         ffs_cut4 = ifelse(avg_ffscost>= ffs_q3,1,0),
+         ffs_quart = 1*ffs_cut1 + 2*ffs_cut2 + 3*ffs_cut3 + 4*ffs_cut4) %>%
+  filter(ffs_quart>0, !is.na(bid)) %>%
+  mutate(high_hhi=(hhi_group=="treated"))
+
+avg.bid <- treat.ma %>%
+  group_by(hhi_group, ffs_quart) %>% 
+  summarize(mean_bid=mean(bid, na.rm=TRUE))
+
+avg.bid.tab <- pivot_wider(avg.bid, names_from=hhi_group, values_from=mean_bid, names_prefix="bid_")
+
+```
+
+Results are summarized below in @tbl-avgbid, showing average bids by HHI level and FFS cost quartile. Surprisingly, bids are highest in the lowest FFS cost quartile; however, this could reflect many other differences across counties that are correlated with FFS costs. Nonetheless, we also see that higher HHI markets tend to have higher bids within each FFS cost quartile, consistent with the idea that less competitive markets lead to higher prices.
+
+```{r}
+#| echo: false
+#| label: tbl-avgbid
+#| tbl-cap: Mean Bids by HHI and FFS Cost Quartile
+
+options(knitr.kable.NA = 0)
+knitr::kable(avg.bid.tab, 
+             col.names=c("FFS Quartile","Low HHI","High HHI"),
+             format.args=list(big.mark=","),
+             booktabs = TRUE) %>%
+             kable_styling(latex_options="hold_position")
+```
+
+
+\newpage
+\noindent 7. Find the average treatment effect using the estimators listed in the homework, and present your results in a single table.
+
+Results are presented in @tbl-coeftable. Note that all point estimates *should* be identical provided you are using the same data in each step, though the standard errors can differ. If your estimates differ across estimators, then it's probably because you have some missing observations somewhere that are dropped in one analysis and not in another.
+
+```{r}
+#| include: false
+
+## matching
+match.inv <- Matching::Match(Y=treat.ma$bid,
+                Tr=treat.ma$high_hhi,
+                X= (treat.ma %>% select(ffs_cut1, ffs_cut2, ffs_cut3)),
+                M=1,
+                Weight=1,
+                estimand="ATE")
+
+match.mah <- Matching::Match(Y=treat.ma$bid,
+                          Tr=treat.ma$high_hhi,
+                          X= (treat.ma %>% select(ffs_cut1, ffs_cut2, ffs_cut3)),
+                          M=1,
+                          Weight=2,
+                          estimand="ATE")
+
+  
+## Propensity scores and IPW
+logit.model <- glm(high_hhi ~ ffs_cut1 + ffs_cut2 + ffs_cut3,
+                   family=binomial, 
+                   data=treat.ma)
+ps <- fitted(logit.model)
+
+treat.ma <- treat.ma %>%
+  mutate(ipw = case_when(
+    high_hhi==1 ~ 1/ps,
+    high_hhi==0 ~ 1/(1-ps),
+    TRUE ~ NA_real_
+  ))
+
+mean.t1 <- treat.ma %>% filter(high_hhi==1) %>%
+  select(bid, ipw) %>% summarize(mean_b=weighted.mean(bid,w=ipw))
+mean.t0 <- treat.ma %>% filter(high_hhi==0) %>%
+  select(bid, ipw) %>% summarize(mean_b=weighted.mean(bid,w=ipw))
+ipw.diff <- mean.t1$mean_b - mean.t0$mean_b
+
+ipw.reg <- lm(bid ~ high_hhi, data=treat.ma, weights=ipw)
+
+
+## Regression
+reg.data <- treat.ma %>% ungroup() %>%
+  mutate(ffs1_diff = high_hhi*(ffs_cut1 - mean(ffs_cut1)),
+         ffs2_diff = high_hhi*(ffs_cut2 - mean(ffs_cut2)),
+         ffs3_diff = high_hhi*(ffs_cut3 - mean(ffs_cut3)))
+
+reg <- lm(bid ~ high_hhi + ffs_cut1 + ffs_cut2 + ffs_cut3 +
+            ffs1_diff + ffs2_diff + ffs3_diff,
+          data=reg.data)
+
+```
+
+
+```{r}
+#| echo: false
+#| eval: true
+
+mod.inv <- data.frame(
+  term = "High HHI",
+  estimate = match.inv$est,
+  std.error = match.inv$se
+)
+
+mod.mah <- data.frame(
+  term = "High HHI",
+  estimate = match.mah$est,
+  std.error = match.mah$se
+)
+
+mod.ipw <- data.frame(
+  term = "High HHI",
+  estimate = ipw.reg$coefficients[[2]],
+  std.error = sqrt(vcov(ipw.reg)[2,2])
+)
+
+mod.reg <- data.frame(
+  term = "High HHI",
+  estimate = reg$coefficients[[2]],
+  std.error = sqrt(vcov(reg)[2,2])
+)
+
+match.mod.inv <- list(tidy=mod.inv)
+class(match.mod.inv) <- "modelsummary_list"
+
+match.mod.mah <- list(tidy=mod.mah)
+class(match.mod.mah) <- "modelsummary_list"
+
+mod.ipw <- list(tidy=mod.ipw)
+class(mod.ipw) <- "modelsummary_list"
+
+mod.reg <- list(tidy=mod.reg)
+class(mod.reg) <- "modelsummary_list"
+
+```
+
+```{r}
+#| echo: false
+#| label: tbl-coeftable
+#| tbl-cap: ATE Estimates
+
+modelsummary(list("INV"=match.mod.inv, "MAH"=match.mod.mah, "IPW"=mod.ipw, "OLS"=mod.reg),
+             output="kableExtra") %>%
+  kable_styling()
+```
+
+
+
+\newpage
+\noindent 8. With these different treatment effect estimators, are the results similar, identical, very different?
+
+We've tried lots of different estimators, and in all cases, we've gotten the exact same answer! That's pretty cool and shows us how these estimators are all trying to do the same things. Note that the equivalence between these estimators is not true in general...it's only because we're considering dummy variables as our only covariates. If we had continuous variables as covariates, then these different estimators would be similar but not identical as they are here (which is what we found in class)
+
+
+\newpage
+\noindent 9. Pick your favorite flavor of estimators in this section (matching, weighting, regression, etc) and re-estimate treatment effects using the continuous FFS costs variable as well as total Medicare beneficiaries as your covariates. How does this result compare to the analogous estimate when matching/weighting only on FFS quartile?
+
+Results are presented in @tbl-coeftable2 and suggest that what looked like a potentially positive effect of HHI on bids in @tbl-coeftable may have been driven in-part by size of the county (as measured by total Medicare eligibles) or the discretization of FFS costs into quartiles. Once we control for these factors more flexibly, the estimated effect of HHI on bids becomes smaller in magnitude and statistically indistinguishable from zero. This suggests that the relationship between market concentration and MA plan bids may be more tenuous than we initially thought, at least once we control for other important market characteristics.
+
+```{r}
+#| include: false
+  
+## Propensity scores and IPW
+logit.model <- glm(high_hhi ~ avg_ffscost + avg_eligibles,
+                   family=binomial, 
+                   data=treat.ma)
+ps <- fitted(logit.model)
+
+treat.ma <- treat.ma %>%
+  mutate(ipw = case_when(
+    high_hhi==1 ~ 1/ps,
+    high_hhi==0 ~ 1/(1-ps),
+    TRUE ~ NA_real_
+  ))
+
+mean.t1 <- treat.ma %>% filter(high_hhi==1) %>%
+  select(bid, ipw) %>% summarize(mean_b=weighted.mean(bid,w=ipw))
+mean.t0 <- treat.ma %>% filter(high_hhi==0) %>%
+  select(bid, ipw) %>% summarize(mean_b=weighted.mean(bid,w=ipw))
+ipw.diff <- mean.t1$mean_b - mean.t0$mean_b
+
+ipw.reg <- lm(bid ~ high_hhi, data=treat.ma, weights=ipw)
+
+mod.ipw2 <- data.frame(
+  term = "High HHI",
+  estimate = ipw.reg$coefficients[[2]],
+  std.error = sqrt(vcov(ipw.reg)[2,2])
+)
+
+mod.ipw2 <- list(tidy=mod.ipw2)
+class(mod.ipw2) <- "modelsummary_list"
+
+```
+
+
+```{r}
+#| echo: false
+#| label: tbl-coeftable2
+#| tbl-cap: ATE Estimates
+
+modelsummary(list("IPW Baseline"=mod.ipw, "IPW Alternate"=mod.ipw2),
+             output="kableExtra") %>%
+  kable_styling()
+```
+
+
+\vspace{.2in}
+\noindent 10. Briefly describe your experience working with these data.
+
+No wrong answers here. I'm just looking for you to reflect a little bit on this assignment.
